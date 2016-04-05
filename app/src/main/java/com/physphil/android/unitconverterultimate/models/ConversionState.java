@@ -79,6 +79,12 @@ public final class ConversionState implements Parcelable
     }
 
     @Override
+    public String toString()
+    {
+        return "Conversion id = " + conversionId + ", from id = " + fromId + ", to id = " + toId;
+    }
+
+    @Override
     public int describeContents()
     {
         return 0;

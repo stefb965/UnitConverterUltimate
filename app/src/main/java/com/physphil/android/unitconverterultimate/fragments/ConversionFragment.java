@@ -24,6 +24,9 @@ import android.os.AsyncTask;
 import android.os.Bundle;
 import android.support.annotation.Nullable;
 import android.support.v4.app.Fragment;
+import android.support.v4.app.LoaderManager;
+import android.support.v4.content.AsyncTaskLoader;
+import android.support.v4.content.Loader;
 import android.text.Editable;
 import android.text.InputType;
 import android.text.TextWatcher;
@@ -60,7 +63,8 @@ import java.text.DecimalFormatSymbols;
  */
 public final class ConversionFragment extends Fragment implements ConversionPresenter.ConversionView,
         SharedPreferences.OnSharedPreferenceChangeListener,
-        RadioGroup.OnCheckedChangeListener
+        RadioGroup.OnCheckedChangeListener,
+        LoaderManager.LoaderCallbacks<ConversionState>
 {
     private static final String ARGS_CONVERSION_ID = "conversion_id";
 
@@ -201,7 +205,10 @@ public final class ConversionFragment extends Fragment implements ConversionPres
     public void onViewStateRestored(@Nullable Bundle savedInstanceState)
     {
         super.onViewStateRestored(savedInstanceState);
-        new LoadConversionStateTask().execute();
+//        new LoadConversionStateTask().execute();
+        Bundle args = new Bundle();
+        args.putInt(ARGS_CONVERSION_ID, mConversionId);
+        getActivity().getSupportLoaderManager().restartLoader(1, args, this).startLoading();
     }
 
     /**
@@ -429,6 +436,31 @@ public final class ConversionFragment extends Fragment implements ConversionPres
         }
     }
 
+    // LoaderManager callbacks for loading conversion state data from db
+    @Override
+    public Loader<ConversionState> onCreateLoader(int id, Bundle args)
+    {
+        @Conversion.id int conversionId = args.getInt(ARGS_CONVERSION_ID);
+        Log.d("PS", "in onCreateLoader, conversion id = " + conversionId);
+        return new ConversionStateLoader(getActivity(), conversionId);
+    }
+
+    @Override
+    public void onLoadFinished(Loader<ConversionState> loader, ConversionState data)
+    {
+        Log.d("PS", "Load finished, " + data.toString());
+        mState = data;
+        restoreConversionState();
+        convert();
+    }
+
+    @Override
+    public void onLoaderReset(Loader<ConversionState> loader)
+    {
+        Log.d("PS", "in onLoaderReset");
+        mState = null;
+    }
+
     @Override
     public void onCreateOptionsMenu(Menu menu, MenuInflater inflater)
     {
@@ -477,6 +509,37 @@ public final class ConversionFragment extends Fragment implements ConversionPres
             mState = conversionState;
             restoreConversionState();
             convert();
+        }
+    }
+
+    /**
+     * Loader to get ConversionState from database in separate thread
+     */
+    private static final class ConversionStateLoader extends AsyncTaskLoader<ConversionState>
+    {
+        private int conversionId;
+
+        public ConversionStateLoader(Context context, @Conversion.id int conversionId)
+        {
+            super(context);
+            Log.d("PS", "ConversionStateLoader: id = " + conversionId);
+            this.conversionId = conversionId;
+        }
+
+        @Override
+        protected void onStartLoading()
+        {
+            forceLoad();
+        }
+
+        @Override
+        public ConversionState loadInBackground()
+        {
+            // Use application context
+            Log.d("PS", "in loadInBackground");
+            ConversionState state = DataAccess.getInstance(getContext()).getConversionState(conversionId);
+            Log.d("PS", state.toString());
+            return state;
         }
     }
 }
